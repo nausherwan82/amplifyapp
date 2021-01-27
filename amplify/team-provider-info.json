@@ -15,6 +15,21 @@
       "auth": {
         "amplifyappe8db019d": {}
       }
+    },
+    "nonCFNdata": {
+      "function": {
+        "amplifyapp2dc176cb": {
+          "layerVersionMap": {
+            "1": {
+              "permissions": [
+                {
+                  "type": "private"
+                }
+              ]
+            }
+          }
+        }
+      }
     }
   }
 }
