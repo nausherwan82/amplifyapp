@@ -6,30 +6,5 @@
       "dependsOn": [],
       "customAuth": false
     }
-  },
-  "function": {
-    "amplifyapp2dc176cb": {
-      "providerPlugin": "awscloudformation",
-      "service": "LambdaLayer",
-      "build": true
-    }
-  },
-  "api": {
-    "amplifyapp": {
-      "service": "AppSync",
-      "providerPlugin": "awscloudformation",
-      "output": {
-        "authConfig": {
-          "defaultAuthentication": {
-            "authenticationType": "API_KEY",
-            "apiKeyConfig": {
-              "apiKeyExpirationDays": 365,
-              "description": "nausherwan"
-            }
-          },
-          "additionalAuthenticationProviders": []
-        }
-      }
-    }
   }
 }
