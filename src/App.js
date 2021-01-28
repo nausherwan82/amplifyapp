@@ -1,93 +1,137 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
-import { withAuthenticator, AmplifySignOut } from '@aws-amplify/ui-react';
-import { listNotes } from './graphql/queries';
-import { createNote as createNoteMutation, deleteNote as deleteNoteMutation } from './graphql/mutations';
-import { API, Storage } from 'aws-amplify';
+import { Auth,Hub, button } from 'aws-amplify';
+import '../node_modules/bootstrap/dist/css/bootstrap.min.css';
+import { BrowserRouter as Router, Switch, Route, Link } from "react-router-dom";
 
-const initialFormState = { name: '', description: '' }
+import Login from "./components/login.component";
+import SignUp from "./components/signup.component";
+
+const initialFormState = { username: '', password: '', email:'', authCode: '', formType: 'signUp' }
 
 function App() {
-  const [notes, setNotes] = useState([]);
-  const [formData, setFormData] = useState(initialFormState);
-
+  const [formState, updateFormState] = useState(initialFormState )
+  const [user, updateUser] = useState(null)
   useEffect(() => {
-    fetchNotes();
-  }, []);
+    checkUser()
+    setAuthListerner()
+  },[])
 
- async function fetchNotes() {
-  const apiData = await API.graphql({ query: listNotes });
-  const notesFromAPI = apiData.data.listNotes.items;
-  await Promise.all(notesFromAPI.map(async note => {
-    if (note.image) {
-      const image = await Storage.get(note.image);
-      note.image = image;
+  async function checkUser() {
+
+    try{
+      const user = await Auth.currentAuthenticatedUser();
+      updateUser(user);
+      updateFormState(() => ({...formState, formType:"signedIn"}));
     }
-    return note;
-  }))
-  setNotes(apiData.data.listNotes.items);
-}
-
- async function createNote() {
-  if (!formData.name || !formData.description) return;
-  await API.graphql({ query: createNoteMutation, variables: { input: formData } });
-  if (formData.image) {
-    const image = await Storage.get(formData.image);
-    formData.image = image;
+    catch(err)
+    {
+     // updateUser(null);
+    }
   }
-  setNotes([ ...notes, formData ]);
-  setFormData(initialFormState);
-}
 
-  async function deleteNote({ id }) {
-    const newNotesArray = notes.filter(note => note.id !== id);
-    setNotes(newNotesArray);
-    await API.graphql({ query: deleteNoteMutation, variables: { input: { id } }});
-  }
-  
-  async function onChange(e) {
-  if (!e.target.files[0]) return
-  const file = e.target.files[0];
-  setFormData({ ...formData, image: file.name });
-  await Storage.put(file.name, file);
-  fetchNotes();
-}
-
-  return (
-    <div className="App">
-      <h1>My Notes App</h1>
-      <input
-        onChange={e => setFormData({ ...formData, 'name': e.target.value})}
-        placeholder="Note name"
-        value={formData.name}
-      />
-      <input
-        onChange={e => setFormData({ ...formData, 'description': e.target.value})}
-        placeholder="Note description"
-        value={formData.description}
-      />
-	  <input
-		type="file"
-		onChange={onChange}
-		/>
-      <button onClick={createNote}>Create Note</button>
-      <div style={{marginBottom: 30}}>
-        {
-		  notes.map(note => (
-			<div key={note.id || note.name}>
-      <h2>{note.name}</h2>
-      <p>{note.description}</p>
-      <button onClick={() => deleteNote(note)}>Delete note</button>
-      {
-        note.image && <img src={note.image} style={{width: 400}} />
+  async function setAuthListerner(){
+    Hub.listen('auth', (data) => {
+      switch (data.payload.event) {
+        case 'signOut':
+        updateFormState(() => ({...formState, formType:"signUp"}));
+            break;
+        default: 
+            break;
       }
-    </div>
-  ))
-}
+    });
+  }
+
+  function onChange(e){
+    e.persist();
+    updateFormState(() => ({ ...formState, [e.target.name]: e.target.value}));
+  }
+  const { formType} = formState;
+  async function signUp(){
+    const { username, password, email } = formState;
+    await Auth.signUp({username, password, attributes:{email}});
+    updateFormState(() => ({...formState, formType:"confirmSignUp"}));
+  }
+  async function confirmSignUp(){
+    const { username, authCode } = formState;
+    await Auth.confirmSignUp( username, authCode );
+    updateFormState(() => ({...formState, formType:"signIn"}));
+  }
+  async function signIn(){
+    const { username, password } = formState;
+    await Auth.signIn(username, password );
+    updateFormState(() => ({...formState, formType:"signedIn"}));
+  }
+
+  return (<Router>
+    <div className="App">
+      <nav className="navbar navbar-expand-lg navbar-light fixed-top">
+        <div className="container">
+          <Link className="navbar-brand" to={"/sign-in"}>positronX.io</Link>
+          <div className="collapse navbar-collapse" id="navbarTogglerDemo02">
+            <ul className="navbar-nav ml-auto">
+              <li className="nav-item">
+                <Link className="nav-link" to={"/sign-in"}>Login</Link>
+              </li>
+              <li className="nav-item">
+                <Link className="nav-link" to={"/sign-up"}>Sign up</Link>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </nav>
+
+      <div className="auth-wrapper">
+        <div className="auth-inner">
+          <Switch>
+            <Route exact path='/' component={Login} />
+            <Route path="/sign-in" component={Login} />
+            <Route path="/sign-up" component={SignUp} />
+          </Switch>
+        </div>
       </div>
-      <AmplifySignOut />
-    </div>
+      {
+       formType === 'signUp' && (
+         <div>
+           <input name="username" onChange={onChange} placeholder="username" />
+           <input name="password" type="password" onChange={onChange} placeholder="password" />
+           <input name="email" onChange={onChange} placeholder="email" />
+           <button onClick={signUp}>Sign Up</button>
+           <button onClick={() =>
+             updateFormState(() => ({...formState, formType:"signIn"}))
+             }>Sign In</button>
+        </div>
+       )
+     }
+     {
+       formType === 'signIn' && (
+         <div>
+           <input name="username" onChange={onChange} placeholder="username" />
+           <input name="password" type="password" onChange={onChange} placeholder="password" />
+           <button onClick={signIn}>>Sign In</button>
+        </div>
+       )
+     }
+     {
+       formType === 'confirmSignUp' && (
+         <div>
+           <input name="authCode" onChange={onChange} placeholder="Confirmation code" />
+           <button onClick={confirmSignUp}>Confirm Sign Up</button>
+        </div>
+       )
+     }
+     {
+       formType === 'signedIn' && (
+         <div>
+         <h1>Hello World</h1>
+         <button onClick={
+           () => Auth.signOut()
+         }> Sign Out </button> 
+         </div>
+       )
+     }
+    </div></Router>
   );
 }
 
-export default withAuthenticator(App);
+export default App;
